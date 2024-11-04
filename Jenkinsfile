@@ -16,23 +16,31 @@ pipeline {
             }
         }
 
-        stage('Test') {
+        stage('Cleanup Previous Containers') {
             steps {
                 // Stop and remove any existing container named flask-test
                 sh 'docker stop flask-test || true'
                 sh 'docker rm flask-test || true'
 
-                // Stop any process using port 5000
-                sh "fuser -k 5000/tcp || true"
+                // Stop any existing container named flask-app from previous deployments
+                sh 'docker stop flask-app || true'
+                sh 'docker rm flask-app || true'
 
-                // Run the Docker container and check if it starts successfully
+                // Free up port 5000 if needed
+                sh "fuser -k 5000/tcp || true"
+            }
+        }
+
+        stage('Test') {
+            steps {
+                // Run the Docker container for testing
                 sh 'docker run -d --name flask-test -p 5000:5000 flask-app'
                 sh 'sleep 5' // Wait for the container to start
 
                 // Test if the Flask app is responding
                 sh 'curl -f http://localhost:5000 || exit 1'
 
-                // Clean up the test container
+                // Stop and remove the test container after testing
                 sh 'docker stop flask-test'
                 sh 'docker rm flask-test'
             }
@@ -40,8 +48,9 @@ pipeline {
 
         stage('Deploy') {
             steps {
-                // Deploy the container (running the Flask app)
-                sh 'docker run -d -p 5000:5000 flask-app'
+                // Deploy the container for the actual running service
+                // Ensure any old flask-app container is already removed
+                sh 'docker run -d --name flask-app -p 5000:5000 flask-app'
             }
         }
     }
